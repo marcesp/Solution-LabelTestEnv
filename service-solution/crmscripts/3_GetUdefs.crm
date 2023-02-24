@@ -1,0 +1,403 @@
+// Export user defined fields as a CSV file.
+// Columns from "listTableId" on are technical only and used for import of user defined fields.
+// marce 2020-09-25
+//
+// Usage online: https://online.superoffice.com/Cust00000/CS/scripts/customer.fcgi?_sf=0&action=printBin&includeId=GetUdefs&key=<YourKey>
+// Usage onsite: https://crm.demo.ch/service/scripts/customer.fcgi?_sf=0&action=printBin&includeId=GetUdefs&key=<YourKey>
+
+#setLanguageLevel 3;
+
+String FormatNumber(Integer val)
+{
+  String result;
+  result.append("00");
+  result.append(val.toString());
+  return result.subString(result.getLength() - 2, 2);
+}
+
+String GetTvar2(String prefix, Integer index, Integer mode)
+{
+  String result = "";
+  if (mode == 1)  
+  {
+    if (index <= 60)
+    {
+      result = prefix;
+      result.append("l");
+      result.append(FormatNumber(index));
+    }
+    else if (index <= 100)
+    {
+      result = prefix;
+      result.append("s");
+      result.append(FormatNumber(index - 60));
+    }
+    else if (index <= 110)
+    {
+      result = prefix;
+      result.append("f");
+      result.append(FormatNumber(index - 110));
+    }
+  }
+  else
+  {
+    result = prefix;
+    result.append("s");
+    result.append(FormatNumber(index + 40));
+  }
+  return result;
+}
+
+String GetTvar(Integer columnid)
+{
+  String result = "";
+  if ((columnid > 8960) && (columnid <= 9070))
+  {
+    result = GetTvar2("c", columnid - 8960, 1);  // udcontactsmall
+  }
+  else if ((columnid > 9216) && (columnid <= 9225))
+  {
+    result = GetTvar2("c", columnid - 9216, 2);  // udcontactlarge
+  }
+  else if ((columnid > 35840) && (columnid <= 35950))
+  {
+    result = GetTvar2("a", columnid - 35840, 1);  // udpersonsmall
+  }
+  else if ((columnid > 36096) && (columnid <= 36105))
+  {
+    result = GetTvar2("a", columnid - 36096, 2);  // udpersonlarge
+  }
+  else if ((columnid > 36352) && (columnid <= 36462))
+  {
+    result = GetTvar2("p", columnid - 36352, 1);  // udprojectsmall
+  }
+  else if ((columnid > 36608) && (columnid <= 36617))
+  {
+    result = GetTvar2("p", columnid - 36608, 2);  // udprojectlarge
+  }
+  else if ((columnid > 40448) && (columnid <= 40558))
+  {
+    result = GetTvar2("s", columnid - 40448, 1);  // udpsalesmall
+  }
+  else if ((columnid > 40704) && (columnid <= 40713))
+  {
+    result = GetTvar2("s", columnid - 40704, 2);  // udsalelarge
+  }
+  else if ((columnid > 58368) && (columnid <= 58478))
+  {
+    result = GetTvar2("t", columnid - 58368, 1);  // udappointmentsmall
+  }
+  else if ((columnid > 58624) && (columnid <= 58633))
+  {
+    result = GetTvar2("t", columnid - 58624, 2);  // udappointmentlarge
+  }
+  else if ((columnid > 58880) && (columnid <= 58990))
+  {
+    result = GetTvar2("d", columnid - 58880, 1);  // uddocumentsmall
+  }
+  else if ((columnid > 59136) && (columnid <= 59145))
+  {
+    result = GetTvar2("d", columnid - 59136, 2);  // udpdocumentlarge
+  }
+  return result;
+}
+
+String Translate(String name, String lang)
+{
+  String result = name;
+  String tag = lang + ":\"";
+  Integer tagLength = 4;
+  Integer pos1 = result.findCase(tag);
+  if (pos1 < 0)
+  {
+    tagLength = 2;
+    pos1 = result.findCase(":\"");
+  }
+  if (pos1 >= 0)
+  {
+    result = result.subString(pos1 + tagLength, result.getLength() - pos1 - tagLength);
+    pos1 = result.findCase("\"");
+    if (pos1 >= 0)
+    {
+      result = result.subString(0, pos1);
+    }
+  }
+  return result;
+}
+
+String Translate(String name)
+{
+  return Translate(name, "GE");
+}
+
+String PrepareCsv(String input)
+{
+  String result;
+  if ((input.find(";") >= 0) || (input.find("\"") >= 0) || (input.find("\r") >= 0) || (input.find("\n") >= 0))
+  {
+    result = "\"";
+    result.append(input.substitute("\"", "\"\""));
+    result.append("\"");
+  }
+  else
+  {
+    result = input;
+  }
+  return result;
+}
+
+Map udlist;
+String GetListName(String listTableId, String udListDefinitionId)
+{
+  if (udlist.size() == 0)
+  {
+    // Populate map
+    SearchEngine se;
+    se.addCriteria("UDListDefinition.UDListDefinition_id", "Gt", "0");
+    se.addField("UDListDefinition.UDListDefinition_id");
+    se.addField("UDListDefinition.listTableId");
+    se.addField("UDListDefinition.name");
+    for (se.select(); !se.eof(); se.next())
+    {
+      if (se.getField(1).equals("136"))
+      {
+        udlist.insert(se.getField(0), Translate(se.getField(2)));
+      }
+      else
+      {
+        udlist.insert(se.getField(1), Translate(se.getField(2)));
+      }
+    }
+  }
+  String result = "";
+  if (listTableId.equals("2"))
+  {
+    if (udListDefinitionId.equals("0"))
+    {
+      result = "Associate";
+    }
+    else if (udListDefinitionId.equals("1"))
+    {
+      result = "General - Resource";
+    }
+  }
+  else if (listTableId.equals("136"))
+  {
+    result = udlist.get(udListDefinitionId);
+  }
+  else
+  {
+    result = udlist.get(listTableId);
+  }
+  return result;
+}
+
+Map number2table;  // Some meta info
+number2table.fromJson('{"2":"associate.associate_id","19":"country.country_id","48":"relationdefinition.reldef_id","59":"UserGroup.UserGroup_id","61":"Business.business_id","64":"Category.Category_id","67":"Task.Task_id","70":"ContInt.ContInt_id","73":"PersInt.PersInt_id","76":"PersPos.PersPos_id","79":"Priority.Priority_id","82":"Prob.Prob_id","85":"ProjType.ProjType_id","88":"ProjStatus.ProjStatus_id","91":"PMembType.PMembType_id","94":"MrMrs.MrMrs_id","97":"Credited.Credited_id","100":"Source.Source_id","103":"Reason.Reason_id","106":"SearchCat.SearchCat_id","109":"Comptr.Comptr_id","112":"Currency.Currency_id","115":"ReasonSold.ReasonSold_Id","118":"SaleTypeCat.SaleTypeCat_Id","122":"StakeholderRole.StakeholderRole_Id","130":"DocTmpl.DocTmpl_id","133":"ExtApp.ExtApp_id","136":"UDList.UDList_id","149":"SaleType.SaleType_Id","154":"ReasonStalled.ReasonStalled_Id","216":"Intent.Intent_Id","219":"Salutation.Salutation_Id","222":"RejectReason.RejectReason_Id","225":"AmountClass.AmountClass_Id","408":"ProductCategory.productcategory_id","411":"ProductFamily.productfamily_id","414":"ProductType.producttype_id","427":"PaymentTerms.paymentterms_id","430":"PaymentType.paymenttype_id","433":"DeliveryTerms.deliveryterms_id","436":"DeliveryType.deliverytype_id","439":"PriceUnit.priceunit_id","442":"SubscriptionUnit.subscriptionunit_id","477":"ShipmentType.ShipmentType_id","483":"LegalBase.legalbase_id","484":"ConsentSource.consentsource_id","486":"CategoryFamily.categoryfamily_id","492":"Tags.tags_id"}');
+String defaultOriginal;
+String GetDefaultValue(String val, String listTableId)
+{
+  String result;
+  if (listTableId.equals("0"))
+  {
+    // Normal value
+    result = val;
+    defaultOriginal = val;
+  }
+  else
+  {
+    String idField = number2table.get(listTableId);
+    String[] t = idField.split(".");
+    String nameField = t[0] + ".name";
+    // User defined list
+    SearchEngine se;
+    se.addCriteria(idField, "Equals", val);
+    se.addField(nameField);
+    se.select();
+    if (!se.eof())
+    {
+      result = Translate(se.getField(0));
+      defaultOriginal = se.getField(0);
+    }
+  }
+  return result;
+}
+
+String GetType(String typeId)
+{
+  String result = typeId;
+  if (typeId.equals("1"))
+  {
+    result = "Number";
+  }
+  else if (typeId.equals("2"))
+  {
+    result = "Short text";
+  }
+  else if (typeId.equals("2"))
+  {
+    result = "Short text";
+  }
+  else if (typeId.equals("3"))
+  {
+    result = "Long text";
+  }
+  else if (typeId.equals("4"))
+  {
+    result = "Date";
+  }
+  else if (typeId.equals("5"))
+  {
+    result = "Unlimited date";
+  }
+  else if (typeId.equals("6"))
+  {
+    result = "Checkbox";
+  }
+  else if (typeId.equals("7"))
+  {
+    result = "List";
+  }
+  else if (typeId.equals("8"))
+  {
+    result = "Decimal";
+  }
+  return result;
+}
+
+Void AddUdefs(String table, String tableId, Vector data, Bool extended)
+{
+  SearchEngine se1;
+  se1.addCriteria("UserPreference.prefkey", "Equals", "CurrentUdefVersion" + table);
+  se1.addField("UserPreference.prefvalue");
+  se1.setLimit(1);
+  se1.select();
+  if (!se1.eof())
+  {
+    String version = se1.getField(0);
+    SearchEngine se2;
+    se2.addCriteria("UDefField.ownerTable_id", "Equals", tableId);
+    se2.addCriteria("UDefField.version", "Equals", version);
+    se2.addOrder("UDefField.UDefField_Id", true);
+    se2.addField("UDefField.tabOrder");  // 0
+    se2.addField("UDefField.fieldLabel");  // 1
+    se2.addField("UDefField.fieldType");  // 2
+    se2.addField("UDefField.textLength");  // 3
+    se2.addField("UDefField.listTableId");  // 4
+    se2.addField("UDefField.UDListDefinition_id");  // 5
+    se2.addField("UDefField.fieldDefault");  // 6
+    se2.addField("UDefField.tooltip");  // 7
+    se2.addField("UDefField.progId");  // 8
+    se2.addField("UDefField.mandatory");  // 9
+    se2.addField("UDefField.hideLabel");  // 10
+    se2.addField("UDefField.readOnly");  // 11
+    se2.addField("UDefField.indexed");  // 12
+    se2.addField("UDefField.labelLeft");  // 13
+    se2.addField("UDefField.labelTop");  // 14
+    se2.addField("UDefField.labelWidth");  // 15
+    se2.addField("UDefField.labelHeight");  // 16
+    se2.addField("UDefField.fieldLeft");  // 17
+    se2.addField("UDefField.fieldTop");  // 18
+    se2.addField("UDefField.fieldWidth");  // 19
+    se2.addField("UDefField.fieldHeight");  // 20
+    se2.addField("UDefField.justification");  // 21
+    se2.addField("UDefField.columnId");  // 22
+    se2.addField("UDefField.page1LineNo");  // 23
+    se2.addField("UDefField.ownerTable_id");  // 24
+    se2.addField("UDefField.UDefField_Id");  // 25
+    se2.addField("UDefField.udefIdentity");  // 26
+    if (extended)
+    {
+      se2.addField("UDefField.lastVersionId");  // 27
+      se2.addField("UDefField.formatMask");  // 28
+      se2.addField("UDefField.shortLabel");  // 29
+    }
+    for (se2.select(); !se2.eof(); se2.next())
+    {
+      Vector record;
+      record.pushBack(table);  // 1 = Table
+      record.pushBack(se2.getField(0));  // 2 = Order
+      record.pushBack(PrepareCsv(Translate(se2.getField(1))));  // 3 = Name
+      record.pushBack(GetType(se2.getField(2)));  // 4 = Type
+      record.pushBack(se2.getField(3));  // 5 = Text length
+      record.pushBack(PrepareCsv(GetListName(se2.getField(4), se2.getField(5))));  // 6 = List
+      record.pushBack(PrepareCsv(GetDefaultValue(se2.getField(6), se2.getField(4))));  // 7 = Default value
+      record.pushBack(PrepareCsv(Translate(se2.getField(7))));  // 8 = Tooltip
+      record.pushBack(PrepareCsv(se2.getField(8)));  // 9 = Prog ID
+      record.pushBack(se2.getField(9));  // 10 = Mandatory
+      record.pushBack(se2.getField(10));  // 11 = Hide label
+      record.pushBack(se2.getField(11));  // 12 = Read-only
+      record.pushBack(se2.getField(12));  // 13 = Indexed
+      record.pushBack(se2.getField(13));  // 14 = Label X
+      record.pushBack(se2.getField(14));  // 15 = Label Y
+      record.pushBack(se2.getField(15));  // 16 = Label W
+      record.pushBack(se2.getField(17));  // 17 = Data X
+      record.pushBack(se2.getField(18));  // 18 = Data Y
+      record.pushBack(se2.getField(19));  // 19 = Data W
+      record.pushBack(se2.getField(21));  // 20 = Label alignment
+      record.pushBack(GetTvar(se2.getField(22).toInteger()));  // 21 = Template var
+      record.pushBack(se2.getField(23));  // 22 = Page 1 line
+      record.pushBack(se2.getField(24));  // 23 = TableId
+      record.pushBack(se2.getField(25));  // 24 = FieldId
+      record.pushBack(PrepareCsv(se2.getField(1)));  // 25 = fieldLabelOriginal
+      record.pushBack(PrepareCsv(se2.getField(7)));  // 26 = tooltipOriginal
+      record.pushBack(se2.getField(2));  // 27 = Type  
+      record.pushBack(se2.getField(4));  // 28 = listTableId
+      record.pushBack(se2.getField(5));  // 29 = UDListDefinition_id
+      record.pushBack(se2.getField(22));  // 30 = columnId
+      record.pushBack(se2.getField(26));  // 31 = udefIdentity
+      record.pushBack(se2.getField(16));  // 32 = Label H
+      record.pushBack(se2.getField(20));  // 33 = Data H
+      record.pushBack(defaultOriginal);  // 34 = defaultOriginal
+      if (extended)
+      {
+        record.pushBack(se2.getField(28));  // 35 = lastVersionId
+        record.pushBack(PrepareCsv(se2.getField(29)));  // 36 = formatMask
+        record.pushBack(PrepareCsv(se2.getField(30)));  // 37 = shortLabel
+      }
+      data.pushBack(record.buildString(";"));
+    }
+  }
+}
+
+String Locator()
+{
+  // Returns path CustXXXXX for online, host for onsite
+  // url1=http://crm.demo.ch, url2=http://crm.demo.ch/service/scripts/customer.fcgi?_sf=0
+  String url1 = getCgiUrl();
+  String url2 = getProgramCustomer();
+  String result = url2.subString(url1.getLength() + 1, url2.getLength() - url1.getLength() - 1);
+  Integer pos = result.find("/");
+  if (pos > 0)
+  {
+    result = result.subString(0, pos);
+  }
+  if (!result.toLower().beginsWith("cust"))
+  {
+    pos = url1.find("//");
+    if (pos > 0)
+    {
+      result = url1.subString(pos + 2, url1.getLength() - 2).substitute("/", "");
+    }
+  }
+  return result;
+}
+
+Bool extended = false;
+Vector data;
+String heading = "Table;Order;Name;Type;Text length;List;Default value;Tooltip;Prog ID;Mandatory;Hide label;Read-only;Indexed;Label X;Label Y;Label W;Data X;Data Y;Data W;Label alignment;Template var;Page 1 line;TableId;FieldId;fieldLabelOriginal;tooltipOriginal;Type;listTableId;UDListDefinition_id;columnId;udefIdentity;Label H;Data H;defaultOriginal";
+if (extended) heading.append(";lastVersionId;formatMask;shortLabel");
+data.pushBack(heading);
+AddUdefs("contact", "7", data, extended);
+AddUdefs("person", "8", data, extended);
+AddUdefs("project", "9", data, extended);
+AddUdefs("sale", "10", data, extended);
+AddUdefs("appointment", "12", data, extended);
+AddUdefs("document", "13", data, extended);
+String content = data.buildString("\r\n");
+// output
+String h = "Content-type: text/csv\nContent-Disposition: attachment; filename=" + Locator() + ".csv\nPragma: no-cache\nExpires: 0";
+h.append("\n\n");  // Put TWO newline characters Between header and content
+print(h);
+Byte[] b = content.toByteArray();
+printBinary(b);

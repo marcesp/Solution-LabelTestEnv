@@ -1,0 +1,251 @@
+// Please run only in TEST
+// 1. Replaces CustId PROD by CustId TEST in web panels and settings (if present)
+// 2. Creates two icons "DEMO!!!" in sales (Web Panel with Icon in naviagtor), and Service (extra menu), if not present already.
+// 3. Updates configuration (test email addresses)
+String fromCustId = "00000";  // CustId of PROD tenant
+
+// Upload demo.jpg, a flashy icon of approximately 32 x 32 pixel, in SuperOffice service as an external document. Copy the URL and paste it here.
+String iconUrl = "https://online.superoffice.com/Cust25668/CS/scripts/rms.fcgi/getAttachment/123-4Iwg1jLeKmugmpwu6YNXjBYHoN88b8xexdCdZuiTKGqQ0tgzNbJ4SO6BPmwDQZjG-0/demo.jpg";
+
+#setLanguageLevel 3;
+
+String GetCustId()
+{
+  String result = getProgramCustomer();
+  Integer p1 = result.findCase("/Cust") + 5;
+  result = result.subString(p1, result.getLength() - p1);
+  Integer p2 = result.find("/");
+  result = result.subString(0, p2);
+  return result;
+}
+
+Void ChangeCustId(String fromCustId, String toCustId, String table, String idField, String valueField)
+{
+  // Change CustXXXXX to CustYYYYY
+  SearchEngine se1;
+  String f1 = table + "." + idField;
+  String f2 = table + "." + valueField;
+  se1.addCriteria(f2, "Contains", fromCustId);
+  se1.addField(f1);
+  se1.addField(f2);
+  for (se1.select(); !se1.eof(); se1.next())
+  {
+    String msg = "table=";
+    msg.append(table);
+    msg.append(", ");
+    msg.append(idField);
+    msg.append("=");
+    msg.append(se1.getField(0));
+    SearchEngine se2;
+    se2.addCriteria(f1, "Equals", se1.getField(0));
+    String val = se1.getField(1);
+    msg.append(", ");
+    msg.append(valueField);
+    msg.append("=");
+    msg.append(val);
+    val = val.substitute(fromCustId, toCustId);
+    msg.append(" ==> ");
+    msg.append(val);
+    se2.addData(f2, val);
+    se2.update();
+    msg.append(", updated.");
+    printLine(msg);
+  }
+}
+
+/*
+Void UpdateConfiguration(String key, String name, String data)
+{
+  SearchEngine se1;
+  se1.addCriteria("y_configuration.x_key", "Equals", key);
+  se1.addCriteria("y_configuration.x_name", "Equals", name);
+  se1.addField("y_configuration.id");
+  se1.addField("y_configuration.x_data");
+  for (se1.select(); !se1.eof(); se1.next())
+  {
+    String msg = "id=";
+    msg.append(se1.getField(0));
+    msg.append(", key=");
+    msg.append(key);
+    msg.append(", name=");
+    msg.append(name);
+    msg.append(", data=");
+    msg.append(se1.getField(1));
+    SearchEngine se2;
+    se2.addCriteria("y_configuration.id", "Equals", se1.getField(0));
+    se2.addData("y_configuration.x_data", data);
+    msg.append(" ==> ");
+    msg.append(data);
+    se2.update();
+    msg.append(", updated.");
+    printLine(msg);
+  }
+}
+*/
+
+String GetNextValue(String field)
+{
+  String result = "1";
+  SearchEngine se1;
+  se1.addCriteria(field, "Gt", "0");
+  se1.addField(field);
+  se1.addOrder(field, false);
+  se1.setLimit(1);
+  se1.select();
+  if (!se1.eof())
+  {
+    Integer val = se1.getField(0).toInteger() + 1;
+    result = val.toString();
+  }
+  return result;
+}
+
+Void AddIcon(String name)
+{
+  String msg = "icon \"";
+  msg.append(name);
+  msg.append("\"");
+  SearchEngine se1;
+  se1.addCriteria("ExtApp.name", "Contains", name);
+  se1.addField("ExtApp.ExtApp_id");
+  se1.select();
+  if (se1.eof())
+  {
+    User u = getActiveUser();
+    String associateId = u.getValue("associateId");
+    DateTime dt;
+    String now = dt.toString();
+    SearchEngine se2;
+    se2.addData("ExtApp.name", name);
+    se2.addData("ExtApp.rank", GetNextValue("ExtApp.rank"));
+    se2.addData("ExtApp.tooltip", "");
+    se2.addData("ExtApp.deleted", "0");
+    se2.addData("ExtApp.path", "");
+    se2.addData("ExtApp.filename", "");
+    se2.addData("ExtApp.parameters", "0");
+    se2.addData("ExtApp.workdir", "");
+    se2.addData("ExtApp.icon", "16453");
+    se2.addData("ExtApp.availableInState", "9");
+    se2.addData("ExtApp.executeOnEvent", "0");
+    se2.addData("ExtApp.navigation", "2");
+    se2.addData("ExtApp.showState", "0");
+    se2.addData("ExtApp.registered", now);
+    se2.addData("ExtApp.registered_associate_id", associateId);
+    se2.addData("ExtApp.updated", "1760-01-01");
+    se2.addData("ExtApp.updated_associate_id", "0");
+    se2.addData("ExtApp.updatedCount", "0");
+    se2.addData("ExtApp.appType", "4");
+    se2.addData("ExtApp.waitToFinish", "0");
+    se2.addData("ExtApp.windowName", "TESTENV");
+    se2.addData("ExtApp.url1", "about:blank");
+    se2.addData("ExtApp.url2", "");
+    se2.addData("ExtApp.configInfo", "");
+    Integer id = se2.insert();
+    msg.append(" added, id=");
+    msg.append(id.toString());
+  }
+  else
+  {
+    msg.append(" found, id=");
+    msg.append(se1.getField(0));
+    SearchEngine se2;
+    se2.addCriteria("ExtApp.ExtApp_id", "Equals", se1.getField(0));
+    se2.addData("ExtApp.deleted", "0");
+    se2.update();
+  }
+  printLine(msg);
+}
+
+Void AddServiceIcon(String name, String toCustId)
+{
+  String msg = "service icon \"";
+  msg.append(name);
+  msg.append("\"");
+  SearchEngine se1;
+  se1.addCriteria("extra_menus.label", "Equals", name);
+  se1.addField("extra_menus.id");
+  se1.addField("extra_menus.icon_url");
+  se1.select();
+  if (se1.eof())
+  {
+    // insert
+    SearchEngine se2;
+    se2.addData("extra_menus.screen", "301");
+    se2.addData("extra_menus.label", name);
+    se2.addData("extra_menus.url", "");
+    se2.addData("extra_menus.target", "");
+    se2.addData("extra_menus.icon_url", iconUrl);
+    se2.addData("extra_menus.extra_info", "");
+    se2.addData("extra_menus.order_pos", "10");
+    se2.addData("extra_menus.flags", "0");
+    se2.addData("extra_menus.base_program", "0");
+    se2.addData("extra_menus.extra_table", "0");
+    se2.addData("extra_menus.group_id", "0");
+    Integer id = se2.insert();
+    msg.append(" added, id=");
+    msg.append(id.toString());
+  }
+  else
+  {
+    msg.append(" found, id=");
+    msg.append(se1.getField(0));
+    String existingIconUrl = se1.getField(1);
+    if (!iconUrl.equals(existingIconUrl))
+    {
+      // update
+      SearchEngine se2;
+      se2.addCriteria("extra_menus.id", "Equals", se1.getField(0));
+      se2.addData("extra_menus.icon_url", iconUrl);
+      se2.update();
+      msg.append(", icon_url=");
+      msg.append(iconUrl);
+      msg.append(", updated.");
+    }
+  }
+  printLine(msg);
+}
+
+Void ProdToTest()
+{
+  String toCustId = GetCustId();  //TEST
+  printLine("fromCustId=" + fromCustId + ", toCustId=" + toCustId);
+  if (!fromCustId.equals(toCustId))
+  {
+    AddIcon("DEMO!!!");
+    AddServiceIcon("DEMO!!!", toCustId);
+    ChangeCustId(fromCustId, toCustId, "ExtApp", "ExtApp_id", "url1");  // Web panel
+    ChangeCustId(fromCustId, toCustId, "UserPreference", "userpreference_id", "prefvalue");  // Settings
+    //UpdateConfiguration("Test", "emailAddress", "crm.test@stoecklin.com");
+    //UpdateConfiguration("PSI", "EmailBuchhaltung", "crm.test@stoecklin.com");
+  }
+  else
+  {
+    printLine("Nothing to do.");
+  }
+}
+
+Void Test()
+{
+  String fields = "id,screen,label,url,target,icon_url,extra_info,order_pos,flags,base_program,extra_table,group_id";
+  String[] f = fields.split(",");
+  SearchEngine se1;
+  for (Integer i = 0; i < f.length(); i++) se1.addField("extra_menus." + f[i]);
+  se1.addCriteria("extra_menus.id", "Gt", "0");
+  se1.addOrder("extra_menus.id", true);
+  Integer j = 0;
+  for (se1.select(); !se1.eof(); se1.next())
+  {
+    j++;
+    String msg = j.toString();
+    for (Integer i = 0; i < f.length(); i++)
+    {
+      msg.append(", ");
+      msg.append(f[i]);
+      msg.append("=");
+      msg.append(se1.getField(i));
+    }
+    printLine(msg);
+  }
+}
+//Test();
+ProdToTest();
